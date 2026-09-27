@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>U13 A/AA Eastern Loop — Team Schedule</title>
+<style>
+  :root{
+    --home:#1e8a4c;
+    --home-bg:#e6f6ec;
+    --away:#1d5fbf;
+    --away-bg:#e8f0fd;
+    --blackout:#b3312c;
+    --blackout-bg:#fbe7e6;
+    --ink:#1c2430;
+    --sub:#5b6473;
+    --line:#e2e5eb;
+    --bg:#f5f6f8;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    padding:16px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;}
+  h1{
+    font-size:20px;
+    margin:0 0 4px 0;
+  }
+  .subtitle{color:var(--sub);font-size:13px;margin:0 0 18px 0;}
+
+  .controls{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 16px;
+    margin-bottom:16px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+  }
+  .control-group{display:flex;flex-direction:column;gap:4px;}
+  .control-group label.title{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sub);font-weight:600;}
+  select{
+    font-size:14px;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    min-width:220px;
+  }
+  .chips{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{
+    display:flex;align-items:center;gap:6px;
+    font-size:13px;
+    padding:7px 12px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    cursor:pointer;
+    user-select:none;
+    background:#fff;
+    transition:all .12s ease;
+  }
+  .chip input{display:none;}
+  .chip .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .chip.home .dot{background:var(--home);border-radius:2px;}
+  .chip.away .dot{background:var(--away);border-radius:0;transform:rotate(45deg);}
+  .chip.blk .dot{background:var(--blackout);border-radius:50%;}
+  .chip.off{opacity:.4;}
+  .chip.home.on{border-color:var(--home);background:var(--home-bg);}
+  .chip.away.on{border-color:var(--away);background:var(--away-bg);}
+  .chip.blk.on{border-color:var(--blackout);background:var(--blackout-bg);}
+
+  .cal-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 16px 18px;
+  }
+  .cal-nav{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:12px;
+  }
+  .cal-nav button{
+    border:1px solid var(--line);
+    background:#fff;
+    border-radius:8px;
+    width:34px;height:34px;
+    font-size:16px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .cal-nav button:hover{background:#f0f1f4;}
+  .cal-nav button:disabled{opacity:.3;cursor:default;}
+  .cal-month{font-size:16px;font-weight:700;}
+  .cal-team-name{font-size:12px;color:var(--sub);margin-top:2px;}
+
+  table.cal{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+  }
+  table.cal th{
+    font-size:11px;
+    text-transform:uppercase;
+    color:var(--sub);
+    font-weight:600;
+    padding:6px 2px;
+    text-align:center;
+  }
+  table.cal td{
+    border:1px solid var(--line);
+    vertical-align:top;
+    height:78px;
+    padding:4px;
+    position:relative;
+  }
+  table.cal td.empty{background:#fafafb;border-color:#eef0f3;}
+  .daynum{font-size:11px;color:var(--sub);font-weight:600;}
+  .today .daynum{
+    background:var(--ink);color:#fff;border-radius:50%;
+    width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;
+    font-size:10px;
+  }
+  .events{margin-top:2px;display:flex;flex-direction:column;gap:2px;}
+  .ev{
+    font-size:10.5px;
+    line-height:1.25;
+    padding:2px 4px;
+    border-radius:5px;
+    cursor:pointer;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .ev.home{background:var(--home-bg);color:var(--home);font-weight:700;border-left:4px solid var(--home);font-style:normal;}
+  .ev.away{background:var(--away-bg);color:var(--away);font-weight:600;font-style:italic;border-left:4px dashed var(--away);}
+  .ev.blk{background:var(--blackout-bg);color:var(--blackout);font-weight:600;border-left:4px dotted var(--blackout);}
+
+  .legend{display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;font-size:12px;color:var(--sub);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend .swatch{width:22px;height:14px;border-radius:3px;display:inline-block;}
+  .legend .swatch.home{background:var(--home-bg);border-left:4px solid var(--home);}
+  .legend .swatch.away{background:var(--away-bg);border-left:4px dashed var(--away);}
+  .legend .swatch.blk{background:var(--blackout-bg);border-left:4px dotted var(--blackout);}
+
+  .detail-panel{
+    margin-top:16px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 16px;
+  }
+  .detail-panel h3{margin:0 0 10px 0;font-size:14px;}
+  .detail-empty{color:var(--sub);font-size:13px;}
+  .detail-item{
+    display:flex;
+    gap:10px;
+    padding:8px 0;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .detail-item:last-child{border-bottom:none;}
+  .detail-badge{
+    flex:none;
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    padding:3px 8px;
+    border-radius:5px;
+    height:fit-content;
+  }
+  .detail-badge.home{background:var(--home-bg);color:var(--home);border-left:3px solid var(--home);}
+  .detail-badge.away{background:var(--away-bg);color:var(--away);border-left:3px dashed var(--away);font-style:italic;}
+  .detail-badge.blk{background:var(--blackout-bg);color:var(--blackout);border-left:3px dotted var(--blackout);}
+  .detail-main strong{display:block;}
+  .detail-main .meta{color:var(--sub);font-size:12px;margin-top:1px;}
+
+  .upcoming{margin-top:16px;}
+  .upcoming h3{font-size:14px;margin:0 0 8px 0;}
+  .up-list{display:flex;flex-direction:column;gap:0;}
+
+  @media (max-width:640px){
+    table.cal td{height:60px;font-size:10px;padding:2px;}
+    .ev{font-size:9px;padding:1px 3px;}
+    select{min-width:160px;}
+    .controls{flex-direction:column;align-items:stretch;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>U13 A/AA OWHA Eastern Loop — 2026‑27</h1>
+  <p class="subtitle">Pick your team, then browse the season. Toggle Home / Away / Blackouts to filter what's shown.</p>
+
+  <div class="controls">
+    <div class="control-group">
+      <label class="title" for="teamSelect">Team</label>
+      <select id="teamSelect"></select>
+    </div>
+    <div class="control-group">
+      <label class="title">Show</label>
+      <div class="chips">
+        <label class="chip home on" id="chipHome"><input type="checkbox" checked><span class="dot"></span>🏠 Home games</label>
+        <label class="chip away on" id="chipAway"><input type="checkbox" checked><span class="dot"></span>🚗 Away games</label>
+        <label class="chip blk on" id="chipBlk"><input type="checkbox" checked><span class="dot"></span>⛔ Blackouts</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="cal-card">
+    <div class="cal-nav">
+      <button id="prevBtn" title="Previous month">‹</button>
+      <div>
+        <div class="cal-month" id="monthLabel"></div>
+        <div class="cal-team-name" id="teamNameLabel"></div>
+      </div>
+      <button id="nextBtn" title="Next month">›</button>
+    </div>
+    <table class="cal">
+      <thead>
+        <tr>
+          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+        </tr>
+      </thead>
+      <tbody id="calBody"></tbody>
+    </table>
+    <div class="legend">
+      <span><span class="swatch home"></span>🏠 Home game (solid edge, bold)</span>
+      <span><span class="swatch away"></span>🚗 Away game (dashed edge, italic)</span>
+      <span><span class="swatch blk"></span>⛔ Blackout / no games (dotted edge)</span>
+    </div>
+  </div>
+
+  <div class="detail-panel" id="detailPanel">
+    <h3>Select a day</h3>
+    <div class="detail-empty">Click any date on the calendar to see full details.</div>
+  </div>
+
+  <div class="upcoming">
+    <h3>Full season list — <span id="upcomingTeamName"></span></h3>
+    <div class="detail-panel" style="margin-top:0;">
+      <div class="up-list" id="upList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- DATA ---------------- */
+const TEAM_NAMES = {
+  O67:   "Ottawa 67s #2030 AA",
+  NEPAA: "Nepean Wildcats #2856 AA",
+  KANAA: "Kanata Rangers #1731 AA",
+  CORAA: "Cornwall Typhoons #2332 AA",
+  EOAA:  "East Ottawa Stars #2460 AA",
+  CANAA: "Canton Blades #9517 AA",
+  NEPA:  "Nepean Wildcats #2859 A",
+  KANA:  "Kanata Rangers #1733 A",
+  EOA:   "East Ottawa Stars #2462 A"
+};
+
+// games: [date, time, H/A, opponentCode, rink]
+const DATA = {
+O67:{
+  games:[
+    ["2026-10-03","14:15","A","EOA","Ray Friel"],
+    ["2026-10-16","18:00","H","CORAA","Sandy Hill"],
+    ["2026-10-30","18:00","H","EOAA","Sandy Hill"],
+    ["2026-11-07","16:30","A","KANAA","Bell Centennial"],
+    ["2026-11-14","15:30","A","CORAA","Benson 1"],
+    ["2026-11-28","18:30","H","CANAA","Sandy Hill"],
+    ["2026-11-30","19:30","H","KANAA","Sandy Hill"],
+    ["2026-12-05","17:00","H","CANAA","Sandy Hill"],
+    ["2026-12-09","18:15","H","EOAA","Richcraft"],
+    ["2026-12-12","15:30","A","CORAA","Benson 1"],
+    ["2026-12-13","15:00","A","NEPAA","Merivale"],
+    ["2026-12-20","10:00","A","CANAA","Lockwood Arena (USA)"],
+    ["2027-01-06","18:45","A","KANA","TGRC"],
+    ["2027-01-15","18:00","H","NEPAA","Sandy Hill"],
+    ["2027-01-17","18:00","A","KANAA","Mlacak"],
+    ["2027-01-22","18:00","H","NEPA","Sandy Hill"],
+    ["2027-01-23","12:15","A","NEPAA","CU-B"],
+    ["2027-01-29","18:00","H","KANA","Sandy Hill"],
+    ["2027-01-30","09:45","A","CANAA","Lockwood Arena (USA)"],
+    ["2027-02-10","18:15","A","EOAA","Ray Friel"],
+    ["2027-02-12","18:00","H","NEPAA","Sandy Hill"],
+    ["2027-02-17","18:15","H","EOA","Richcraft"]
+  ],
+  blackouts:[
+    ["2026-10-23","2026-10-25","Tournament"],
+    ["2026-11-20","2026-11-22","Tournament"],
+    ["2026-12-21","2027-01-03","Christmas Break"],
+    ["2027-01-07","2027-01-10","Tournament"],
+    ["2027-02-04","2027-02-07","Tournament"]
+  ],
+  recurring:"Tuesday"
+},
+NEPAA:{
+  games:[
+    ["2026-10-02","19:15","A","EOAA","Richcraft"],
+    ["2026-10-04","14:45","H","EOAA","MRC-S"],
+    ["2026-10-24","15:15","A","NEPA","Minto Recreation Complex"],
+    ["2026-10-27","19:00","A","KANAA","Jack Charron"],
+    ["2026-10-31","12:45","H","CORAA","CU-B"],
+    ["2026-11-03","19:00","A","CORAA","Long Sault"],
+    ["2026-11-08","15:00","H","KANA","BSP-MA"],
+    ["2026-11-14","13:45","H","EOAA","MRC-S"],
+    ["2026-11-17","19:00","A","CORAA","Long Sault"],
+    ["2026-11-21","13:00","A","EOA","Ray Friel"],
+    ["2026-11-29","15:00","A","KANA","Beckwith"],
+    ["2026-12-12","14:15","H","CANAA","MRC-S"],
+    ["2026-12-13","15:00","H","O67","Merivale"],
+    ["2026-12-19","12:45","H","KANAA","CU-B"],
+    ["2027-01-02","09:45","A","CANAA","Lockwood Arena (USA)"],
+    ["2027-01-10","11:15","H","KANAA","CU-B"],
+    ["2027-01-15","18:00","A","O67","Sandy Hill"],
+    ["2027-01-17","12:15","H","EOA","MRC-S"],
+    ["2027-01-23","12:15","H","O67","CU-B"],
+    ["2027-02-02","19:00","A","KANAA","Jack Charron"],
+    ["2027-02-12","18:00","A","O67","Sandy Hill"],
+    ["2027-02-13","11:15","H","CANAA","MRC-S"]
+  ],
+  blackouts:[
+    ["2026-10-08","2026-10-11","Tournament"],
+    ["2026-10-15","2026-10-18","Tournament"],
+    ["2026-10-19","2026-10-19","Development"],
+    ["2026-11-06","2026-11-06","Development"],
+    ["2026-12-03","2026-12-06","Tournament"],
+    ["2026-12-18","2026-12-18","Development"],
+    ["2026-12-21","2027-01-01","Christmas Blackout"],
+    ["2027-01-28","2027-01-31","Tournament"],
+    ["2027-02-04","2027-02-07","Tournament"],
+    ["2027-02-08","2027-02-08","Development"],
+    ["2027-02-22","2027-02-22","Development"]
+  ],
+  recurring:"Wednesday"
+},
+KANAA:{
+  games:[
+    ["2026-10-02","20:00","A","EOA","Ray Friel"],
+    ["2026-10-24","12:00","H","CANAA","Bell Centennial"],
+    ["2026-10-27","19:00","H","NEPAA","Jack Charron"],
+    ["2026-10-31","11:00","A","EOAA","Ray Friel"],
+    ["2026-11-05","20:00","A","CANAA","Brockville Centennial Youth Arena"],
+    ["2026-11-07","16:30","H","O67","Bell Centennial"],
+    ["2026-11-12","20:00","A","CANAA","Brockville Centennial Youth Arena"],
+    ["2026-11-15","12:30","A","NEPA","Sportsplex"],
+    ["2026-11-28","16:30","H","CORAA","Bell Centennial"],
+    ["2026-11-30","19:30","A","O67","Sandy Hill"],
+    ["2026-12-05","12:00","H","CORAA","Bell Centennial"],
+    ["2026-12-19","12:45","A","NEPAA","CU-B"],
+    ["2026-12-20","18:00","H","NEPA","Beckwith"],
+    ["2027-01-02","15:30","A","CORAA","Benson 1"],
+    ["2027-01-10","11:15","A","NEPAA","CU-B"],
+    ["2027-01-12","19:00","H","EOAA","Jack Charron"],
+    ["2027-01-17","18:00","H","O67","Mlacak"],
+    ["2027-01-23","09:30","A","EOAA","Richcraft"],
+    ["2027-02-02","19:00","H","NEPAA","Jack Charron"],
+    ["2027-02-09","19:00","H","EOA","Jack Charron"],
+    ["2027-02-12","19:00","H","KANA","Bell Sensplex"],
+    ["2027-02-20","15:30","A","CORAA","Benson 1"]
+  ],
+  blackouts:[
+    ["2026-10-04","2026-10-04","Team Event"],
+    ["2026-10-08","2026-10-11","Tournament"],
+    ["2026-10-15","2026-10-18","Tournament"],
+    ["2026-11-03","2026-11-03","Team Event"],
+    ["2026-11-19","2026-11-22","Tournament"],
+    ["2026-12-10","2026-12-13","Tournament"],
+    ["2027-01-28","2027-01-31","Tournament"],
+    ["2027-02-14","2027-02-15","Team Event"]
+  ],
+  recurring:null
+},
+CORAA:{
+  games:[
+    ["2026-10-10","16:00","A","EOAA","R.J Kennedy"],
+    ["2026-10-16","18:00","A","O67","Sandy Hill"],
+    ["2026-10-18","10:00","H","CANAA","Morrisburg"],
+    ["2026-10-31","12:45","A","NEPAA","CU-B"],
+    ["2026-11-03","19:00","H","NEPAA","Long Sault"],
+    ["2026-11-07","11:00","A","EOAA","Ray Friel"],
+    ["2026-11-14","15:30","H","O67","Benson 1"],
+    ["2026-11-17","19:00","H","NEPAA","Long Sault"],
+    ["2026-11-28","16:30","A","KANAA","Bell Centennial"],
+    ["2026-12-01","19:00","H","EOA","Long Sault"],
+    ["2026-12-05","12:00","A","KANAA","Bell Centennial"],
+    ["2026-12-12","15:30","H","O67","Benson 1"],
+    ["2026-12-15","19:00","H","EOAA","Long Sault"],
+    ["2026-12-19","13:30","A","KANA","Bell Centennial"],
+    ["2027-01-02","15:30","H","KANAA","Benson 1"],
+    ["2027-01-03","10:00","A","CANAA","Lockwood Arena (USA)"],
+    ["2027-01-16","15:30","H","NEPA","Benson 1"],
+    ["2027-01-24","10:00","A","CANAA","Lockwood Arena (USA)"],
+    ["2027-01-26","19:00","H","EOAA","Long Sault"],
+    ["2027-02-12","20:00","A","EOA","Ray Friel"],
+    ["2027-02-14","12:15","A","NEPA","Minto Recreation Complex"],
+    ["2027-02-20","15:30","H","KANAA","Benson 1"]
+  ],
+  blackouts:[
+    ["2026-10-04","2026-10-05","Tournament"],
+    ["2026-10-11","2026-10-13","Tournament"],
+    ["2026-10-21","2026-10-29","Tournament"],
+    ["2026-11-09","2026-11-10","Tournament"],
+    ["2026-11-18","2026-11-24","Tournament"],
+    ["2026-12-07","2026-12-08","Tournament"],
+    ["2026-12-20","2027-01-01","Tournament / Christmas"],
+    ["2027-01-05","2027-01-12","Tournament"],
+    ["2027-01-19","2027-01-19","Tournament"],
+    ["2027-02-02","2027-02-09","Tournament"],
+    ["2027-02-16","2027-02-16","Tournament"]
+  ],
+  recurring:"Wednesday"
+},
+EOAA:{
+  games:[
+    ["2026-10-02","19:15","H","NEPAA","Richcraft"],
+    ["2026-10-04","14:45","A","NEPAA","MRC-S"],
+    ["2026-10-10","16:00","H","CORAA","R.J Kennedy"],
+    ["2026-10-15","20:00","A","CANAA","Brockville Memorial Civic Centre"],
+    ["2026-10-30","18:00","A","O67","Sandy Hill"],
+    ["2026-10-31","11:00","H","KANAA","Ray Friel"],
+    ["2026-11-07","11:00","H","CORAA","Ray Friel"],
+    ["2026-11-14","13:45","A","NEPAA","MRC-S"],
+    ["2026-11-25","18:15","H","NEPA","Ray Friel"],
+    ["2026-11-29","19:00","A","NEPA","TGRC"],
+    ["2026-12-09","18:15","A","O67","Richcraft"],
+    ["2026-12-15","19:00","A","CORAA","Long Sault"],
+    ["2027-01-03","19:00","H","EOA","Richcraft"],
+    ["2027-01-12","19:00","A","KANAA","Jack Charron"],
+    ["2027-01-16","11:00","H","KANA","Ray Friel"],
+    ["2027-01-20","18:45","A","KANA","TGRC"],
+    ["2027-01-23","09:30","H","KANAA","Richcraft"],
+    ["2027-01-26","19:00","A","CORAA","Long Sault"],
+    ["2027-01-31","20:00","A","CANAA","Alaine Chartrand Community Centre"],
+    ["2027-02-10","18:15","H","O67","Ray Friel"],
+    ["2027-02-14","16:45","H","CANAA","Richcraft"],
+    ["2027-02-20","13:15","H","CANAA","Ray Friel"]
+  ],
+  blackouts:[
+    ["2026-10-18","2026-10-18","Development"],
+    ["2026-10-22","2026-10-26","Tournament"],
+    ["2026-11-01","2026-11-01","Development"],
+    ["2026-11-15","2026-11-15","Development"],
+    ["2026-11-19","2026-11-23","Tournament"],
+    ["2026-12-10","2026-12-14","Tournament"],
+    ["2026-12-17","2026-12-21","Tournament"],
+    ["2027-01-07","2027-01-11","Tournament"],
+    ["2027-02-04","2027-02-08","Tournament"]
+  ],
+  recurring:"Monday"
+},
+CANAA:{
+  games:[
+    ["2026-10-04","14:30","A","KANA","Bell Centennial"],
+    ["2026-10-15","20:00","H","EOAA","Brockville Memorial Civic Centre"],
+    ["2026-10-18","10:00","A","CORAA","Morrisburg"],
+    ["2026-10-24","12:00","A","KANAA","Bell Centennial"],
+    ["2026-11-01","16:15","A","NEPA","Sportsplex"],
+    ["2026-11-05","20:00","H","KANAA","Brockville Centennial Youth Arena"],
+    ["2026-11-12","20:00","H","KANAA","Brockville Centennial Youth Arena"],
+    ["2026-11-15","17:00","A","EOA","Ray Friel"],
+    ["2026-11-28","18:30","A","O67","Sandy Hill"],
+    ["2026-12-05","17:00","A","O67","Sandy Hill"],
+    ["2026-12-12","14:15","A","NEPAA","MRC-S"],
+    ["2026-12-17","20:00","H","KANA","Brockville Centennial Youth Arena"],
+    ["2026-12-20","10:00","H","O67","Lockwood Arena (USA)"],
+    ["2027-01-02","09:45","H","NEPAA","Lockwood Arena (USA)"],
+    ["2027-01-03","10:00","H","CORAA","Lockwood Arena (USA)"],
+    ["2027-01-07","20:00","H","NEPA","Brockville Memorial Civic Centre"],
+    ["2027-01-24","10:00","H","CORAA","Lockwood Arena (USA)"],
+    ["2027-01-30","09:45","H","O67","Lockwood Arena (USA)"],
+    ["2027-01-31","20:00","H","EOAA","Alaine Chartrand Community Centre"],
+    ["2027-02-13","11:15","A","NEPAA","MRC-S"],
+    ["2027-02-14","16:45","A","EOAA","Richcraft"],
+    ["2027-02-20","13:15","A","EOAA","Ray Friel"]
+  ],
+  blackouts:[
+    ["2026-10-09","2026-10-11","Blackout"],
+    ["2026-10-16","2026-10-17","Blackout"],
+    ["2026-10-25","2026-10-25","Blackout"],
+    ["2026-11-06","2026-11-07","Blackout"],
+    ["2026-11-13","2026-11-14","Blackout"],
+    ["2026-11-20","2026-11-22","Blackout"],
+    ["2026-11-29","2026-11-29","Blackout"],
+    ["2027-01-15","2027-01-18","Blackout"],
+    ["2027-02-04","2027-02-07","Blackout"]
+  ],
+  recurring:"Wednesday"
+},
+NEPA:{
+  games:[
+    ["2026-10-09","18:15","A","KANA","Bell Sensplex (CT)"],
+    ["2026-10-11","09:00","H","EOA","Sportsplex"],
+    ["2026-10-24","15:15","H","NEPAA","Minto Recreation Complex"],
+    ["2026-10-25","16:15","H","KANA","Sportsplex"],
+    ["2026-11-01","16:15","H","CANAA","Sportsplex"],
+    ["2026-11-04","18:45","A","KANA","TGRC"],
+    ["2026-11-13","19:00","A","EOA","Ray Friel"],
+    ["2026-11-15","12:30","H","KANAA","Sportsplex"],
+    ["2026-11-22","16:45","H","EOA","Minto Recreation Complex"],
+    ["2026-11-25","18:15","A","EOAA","Ray Friel"],
+    ["2026-11-29","19:00","H","EOAA","TGRC"],
+    ["2026-12-02","18:45","A","KANA","TGRC"],
+    ["2026-12-06","09:30","H","EOA","Sportsplex"],
+    ["2026-12-20","18:00","A","KANAA","Beckwith"],
+    ["2027-01-03","09:30","H","KANA","Bell Sensplex"],
+    ["2027-01-07","20:00","A","CANAA","Brockville Memorial Civic Centre"],
+    ["2027-01-10","09:00","A","EOA","Lois Kemp"],
+    ["2027-01-16","15:30","A","CORAA","Benson 1"],
+    ["2027-01-22","18:00","A","O67","Sandy Hill"],
+    ["2027-01-24","12:00","A","EOA","Ray Friel"],
+    ["2027-02-07","17:00","H","KANA","Sportsplex"],
+    ["2027-02-14","12:15","H","CORAA","Minto Recreation Complex"]
+  ],
+  blackouts:[
+    ["2026-10-15","2026-10-19","Tournament"],
+    ["2026-11-05","2026-11-09","Tournament"],
+    ["2026-12-11","2026-12-14","Tournament"],
+    ["2026-12-21","2027-01-02","Christmas"],
+    ["2027-01-29","2027-02-01","Tournament"],
+    ["2027-03-15","2027-03-21","March Break"]
+  ],
+  recurring:"Tuesday"
+},
+KANA:{
+  games:[
+    ["2026-10-04","14:30","H","CANAA","Bell Centennial"],
+    ["2026-10-09","18:15","H","NEPA","Bell Sensplex (CT)"],
+    ["2026-10-14","18:45","H","EOA","TGRC"],
+    ["2026-10-25","16:15","A","NEPA","Sportsplex"],
+    ["2026-10-28","18:45","H","EOA","TGRC"],
+    ["2026-11-01","11:00","A","EOA","Ray Friel"],
+    ["2026-11-04","18:45","H","NEPA","TGRC"],
+    ["2026-11-08","15:00","A","NEPAA","BSP-MA"],
+    ["2026-11-28","14:00","A","EOA","Ray Friel"],
+    ["2026-11-29","15:00","H","NEPAA","Beckwith"],
+    ["2026-12-02","18:45","H","NEPA","TGRC"],
+    ["2026-12-17","20:00","A","CANAA","Brockville Centennial Youth Arena"],
+    ["2026-12-19","13:30","H","CORAA","Bell Centennial"],
+    ["2027-01-03","09:30","A","NEPA","Bell Sensplex"],
+    ["2027-01-06","18:45","H","O67","TGRC"],
+    ["2027-01-08","19:00","A","EOA","Ray Friel"],
+    ["2027-01-16","11:00","A","EOAA","Ray Friel"],
+    ["2027-01-20","18:45","H","EOAA","TGRC"],
+    ["2027-01-29","18:00","A","O67","Sandy Hill"],
+    ["2027-02-03","18:45","H","EOA","TGRC"],
+    ["2027-02-07","17:00","A","NEPA","Sportsplex"],
+    ["2027-02-12","19:00","A","KANAA","Bell Sensplex"]
+  ],
+  blackouts:[
+    ["2026-10-11","2026-10-12","Thanksgiving"],
+    ["2026-10-15","2026-10-19","Away Tournament"],
+    ["2026-10-21","2026-10-22","Team Event"],
+    ["2026-10-29","2026-10-30","Team Event"],
+    ["2026-10-31","2026-10-31","Halloween"],
+    ["2026-11-19","2026-11-23","Tournament"],
+    ["2026-12-03","2026-12-06","Team Event"],
+    ["2026-12-10","2026-12-14","Tournament"],
+    ["2027-01-21","2027-01-25","Tournament"],
+    ["2027-02-14","2027-02-14","Super Bowl"]
+  ],
+  recurring:"Tuesday"
+},
+EOA:{
+  games:[
+    ["2026-10-02","20:00","H","KANAA","Ray Friel"],
+    ["2026-10-03","14:15","H","O67","Ray Friel"],
+    ["2026-10-11","09:00","A","NEPA","Sportsplex"],
+    ["2026-10-14","18:45","A","KANA","TGRC"],
+    ["2026-10-28","18:45","A","KANA","TGRC"],
+    ["2026-11-01","11:00","H","KANA","Ray Friel"],
+    ["2026-11-13","19:00","H","NEPA","Ray Friel"],
+    ["2026-11-15","17:00","H","CANAA","Ray Friel"],
+    ["2026-11-21","13:00","H","NEPAA","Ray Friel"],
+    ["2026-11-22","16:45","A","NEPA","Minto Recreation Complex"],
+    ["2026-11-28","14:00","H","KANA","Ray Friel"],
+    ["2026-12-01","19:00","A","CORAA","Long Sault"],
+    ["2026-12-06","09:30","A","NEPA","Sportsplex"],
+    ["2027-01-03","19:00","A","EOAA","Richcraft"],
+    ["2027-01-08","19:00","H","KANA","Ray Friel"],
+    ["2027-01-10","09:00","H","NEPA","Lois Kemp"],
+    ["2027-01-17","12:15","A","NEPAA","MRC-S"],
+    ["2027-01-24","12:00","H","NEPA","Ray Friel"],
+    ["2027-02-03","18:45","A","KANA","TGRC"],
+    ["2027-02-09","19:00","A","KANAA","Jack Charron"],
+    ["2027-02-12","20:00","H","CORAA","Ray Friel"],
+    ["2027-02-17","18:15","A","O67","Richcraft"]
+  ],
+  blackouts:[
+    ["2026-10-15","2026-10-19","Tournament"],
+    ["2026-11-05","2026-11-09","Tournament"],
+    ["2026-12-10","2026-12-14","Tournament"],
+    ["2026-12-18","2026-12-20","Christmas Break"],
+    ["2027-01-28","2027-02-01","Tournament"]
+  ],
+  recurring:null
+}
+};
+
+/* League-wide blackout (applies to everyone) */
+const LEAGUE_BLACKOUT = [["2026-12-21","2027-01-01","Christmas Break (league-wide)"]];
+
+/* ---------------- STATE ---------------- */
+let currentTeam = "O67";
+let viewYear = 2026, viewMonth = 9; // 0-indexed month: Oct = 9
+const todayStr = new Date().toISOString().slice(0,10);
+
+const teamSelect = document.getElementById("teamSelect");
+Object.keys(TEAM_NAMES).forEach(code=>{
+  const opt = document.createElement("option");
+  opt.value = code;
+  opt.textContent = TEAM_NAMES[code];
+  teamSelect.appendChild(opt);
+});
+teamSelect.value = currentTeam;
+
+const filters = {home:true, away:true, blk:true};
+const chipHome = document.getElementById("chipHome");
+const chipAway = document.getElementById("chipAway");
+const chipBlk  = document.getElementById("chipBlk");
+
+function toggleChip(chip, key){
+  chip.addEventListener("click", ()=>{
+    filters[key] = !filters[key];
+    chip.classList.toggle("on", filters[key]);
+    chip.classList.toggle("off", !filters[key]);
+    render();
+  });
+}
+toggleChip(chipHome,"home");
+toggleChip(chipAway,"away");
+toggleChip(chipBlk,"blk");
+
+teamSelect.addEventListener("change", ()=>{
+  currentTeam = teamSelect.value;
+  render();
+});
+
+document.getElementById("prevBtn").addEventListener("click", ()=>{
+  viewMonth--;
+  if(viewMonth<0){viewMonth=11;viewYear--;}
+  render();
+});
+document.getElementById("nextBtn").addEventListener("click", ()=>{
+  viewMonth++;
+  if(viewMonth>11){viewMonth=0;viewYear++;}
+  render();
+});
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+function pad(n){return n<10 ? "0"+n : ""+n;}
+
+function dateRangeDays(startStr,endStr){
+  const out=[];
+  let d = new Date(startStr+"T00:00:00");
+  const end = new Date(endStr+"T00:00:00");
+  while(d<=end){
+    out.push(d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()));
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+
+/* Build a per-team lookup of date -> array of events (each event: {type, ...}) */
+function buildEventsForTeam(code){
+  const evByDate = {};
+  const team = DATA[code];
+
+  team.games.forEach(([date,time,ha,opp,rink])=>{
+    if(!evByDate[date]) evByDate[date]=[];
+    evByDate[date].push({
+      type: ha==="H" ? "home" : "away",
+      time, opp, rink
+    });
+  });
+
+  const allBlackouts = [...team.blackouts.map(b=>zipBlackout(b)), ...LEAGUE_BLACKOUT.map(b=>zipBlackout(b))];
+  allBlackouts.forEach(b=>{
+    dateRangeDays(b.start,b.end).forEach(d=>{
+      if(!evByDate[d]) evByDate[d]=[];
+      evByDate[d].push({type:"blk", reason:b.reason, start:b.start, end:b.end});
+    });
+  });
+
+  return evByDate;
+}
+function zipBlackout(arr){return {start:arr[0], end:arr[1], reason:arr[2]};}
+
+function render(){
+  const evByDate = buildEventsForTeam(currentTeam);
+  document.getElementById("monthLabel").textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
+  document.getElementById("teamNameLabel").textContent = TEAM_NAMES[currentTeam];
+  document.getElementById("upcomingTeamName").textContent = TEAM_NAMES[currentTeam];
+
+  const firstOfMonth = new Date(viewYear, viewMonth, 1);
+  const startDow = firstOfMonth.getDay();
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+
+  const tbody = document.getElementById("calBody");
+  tbody.innerHTML = "";
+  let row = document.createElement("tr");
+  for(let i=0;i<startDow;i++){
+    const td = document.createElement("td");
+    td.className="empty";
+    row.appendChild(td);
+  }
+  for(let day=1; day<=daysInMonth; day++){
+    const dateStr = viewYear+"-"+pad(viewMonth+1)+"-"+pad(day);
+    const td = document.createElement("td");
+    if(dateStr===todayStr) td.classList.add("today");
+    const daynum = document.createElement("div");
+    daynum.className="daynum";
+    daynum.textContent = day;
+    td.appendChild(daynum);
+
+    const evWrap = document.createElement("div");
+    evWrap.className="events";
+    const evs = (evByDate[dateStr]||[]).filter(e=>{
+      if(e.type==="home") return filters.home;
+      if(e.type==="away") return filters.away;
+      if(e.type==="blk") return filters.blk;
+      return true;
+    });
+    evs.slice(0,3).forEach(e=>{
+      const div = document.createElement("div");
+      if(e.type==="home"){div.className="ev home"; div.textContent = "🏠 "+e.time+" vs "+e.opp;}
+      else if(e.type==="away"){div.className="ev away"; div.textContent = "🚗 "+e.time+" @ "+e.opp;}
+      else {div.className="ev blk"; div.textContent = "⛔ "+(e.reason||"Blackout");}
+      div.addEventListener("click", ()=>showDetail(dateStr, evs));
+      evWrap.appendChild(div);
+    });
+    if(evs.length>3){
+      const more = document.createElement("div");
+      more.className="ev";
+      more.style.color="#5b6473";
+      more.style.background="transparent";
+      more.textContent = "+"+(evs.length-3)+" more";
+      more.addEventListener("click", ()=>showDetail(dateStr, evs));
+      evWrap.appendChild(more);
+    }
+    td.appendChild(evWrap);
+    td.addEventListener("click", (ev)=>{ if(ev.target===td || ev.target===daynum) showDetail(dateStr, evs); });
+    row.appendChild(td);
+    if((startDow+day)%7===0){
+      tbody.appendChild(row);
+      row = document.createElement("tr");
+    }
+  }
+  while(row.children.length>0 && row.children.length<7){
+    const td=document.createElement("td");
+    td.className="empty";
+    row.appendChild(td);
+  }
+  if(row.children.length>0) tbody.appendChild(row);
+
+  renderUpcomingList(evByDate);
+}
+
+function showDetail(dateStr, evs){
+  const panel = document.getElementById("detailPanel");
+  const dObj = new Date(dateStr+"T00:00:00");
+  const label = DOW[dObj.getDay()]+", "+MONTH_NAMES[dObj.getMonth()]+" "+dObj.getDate()+", "+dObj.getFullYear();
+  if(evs.length===0){
+    panel.innerHTML = "<h3>"+label+"</h3><div class='detail-empty'>No games or blackouts on this date (or they're filtered out above).</div>";
+    return;
+  }
+  let html = "<h3>"+label+"</h3>";
+  evs.forEach(e=>{
+    if(e.type==="home"){
+      html += "<div class='detail-item'><span class='detail-badge home'>🏠 Home</span><div class='detail-main'><strong>vs "+TEAM_NAMES[e.opp]+"</strong><div class='meta'>"+e.time+" · "+e.rink+"</div></div></div>";
+    } else if(e.type==="away"){
+      html += "<div class='detail-item'><span class='detail-badge away'>🚗 Away</span><div class='detail-main'><strong>@ "+TEAM_NAMES[e.opp]+"</strong><div class='meta'>"+e.time+" · "+e.rink+"</div></div></div>";
+    } else {
+      html += "<div class='detail-item'><span class='detail-badge blk'>⛔ Blackout</span><div class='detail-main'><strong>"+(e.reason||"Blackout")+"</strong><div class='meta'>"+e.start+" to "+e.end+"</div></div></div>";
+    }
+  });
+  panel.innerHTML = html;
+}
+
+function renderUpcomingList(evByDate){
+  const upList = document.getElementById("upList");
+  upList.innerHTML = "";
+  const team = DATA[currentTeam];
+  const rows = team.games.map(([date,time,ha,opp,rink])=>({date,time,ha,opp,rink}))
+    .sort((a,b)=> a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
+  const filtered = rows.filter(r=> r.ha==="H" ? filters.home : filters.away );
+
+  if(filtered.length===0){
+    upList.innerHTML = "<div class='detail-empty'>No games match the current filters.</div>";
+    return;
+  }
+
+  filtered.forEach(r=>{
+    const dObj = new Date(r.date+"T00:00:00");
+    const label = DOW[dObj.getDay()]+" "+MONTH_NAMES[dObj.getMonth()].slice(0,3)+" "+dObj.getDate()+", "+dObj.getFullYear();
+    const div = document.createElement("div");
+    div.className="detail-item";
+    if(r.ha==="H"){
+      div.innerHTML = "<span class='detail-badge home'>🏠 Home</span><div class='detail-main'><strong>vs "+TEAM_NAMES[r.opp]+"</strong><div class='meta'>"+label+" · "+r.time+" · "+r.rink+"</div></div>";
+    } else {
+      div.innerHTML = "<span class='detail-badge away'>🚗 Away</span><div class='detail-main'><strong>@ "+TEAM_NAMES[r.opp]+"</strong><div class='meta'>"+label+" · "+r.time+" · "+r.rink+"</div></div>";
+    }
+    upList.appendChild(div);
+  });
+}
+
+render();
+</script>
+</body>
+</html>
