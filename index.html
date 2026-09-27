@@ -684,12 +684,19 @@ function normalizeDateCell(raw){
   return s;
 }
 
-/* gviz time-of-day cells can come back as [h,m,s,ms], or as text "18:00:00". */
+/* gviz time-of-day cells can come back as [h,m,s,ms], as text "18:00:00",
+   or — when the column happens to be formatted/typed as a date-time rather
+   than pure time-of-day — as "Date(1899,11,30,15,30,0)", Google's epoch
+   for a bare time value (Dec 30 1899 is day zero in Sheets' date system).
+   In that shape the last three numbers are h,m,s regardless of the
+   leading date, so pull those out rather than the (meaningless) date. */
 function normalizeTimeCell(raw){
   if(raw===null || raw===undefined) return "";
   if(Array.isArray(raw)) return pad(raw[0])+":"+pad(raw[1]);
   const s = String(raw).trim();
-  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  let m = s.match(/^Date\((\d+),(\d+),(\d+),(\d+),(\d+)(?:,(\d+))?\)$/);
+  if(m) return pad(Number(m[4]))+":"+pad(Number(m[5]));
+  m = s.match(/^(\d{1,2}):(\d{2})/);
   if(m) return pad(Number(m[1]))+":"+m[2];
   return s;
 }
