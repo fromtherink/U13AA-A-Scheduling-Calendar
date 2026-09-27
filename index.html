@@ -31,7 +31,11 @@
     font-size:20px;
     margin:0 0 4px 0;
   }
-  .subtitle{color:var(--sub);font-size:13px;margin:0 0 18px 0;}
+  .subtitle{color:var(--sub);font-size:13px;margin:0 0 6px 0;}
+  .sync-status{color:var(--sub);font-size:12px;margin:0 0 18px 0;display:flex;align-items:center;gap:6px;}
+  .sync-status.ok{color:var(--home);}
+  .sync-status.err{color:var(--blackout);}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;}
 
   .controls{
     background:var(--card);
@@ -198,6 +202,7 @@
 <div class="wrap">
   <h1>U13 A/AA OWHA Eastern Loop — 2026‑27</h1>
   <p class="subtitle">Pick your team, then browse the season. Toggle Home / Away / Blackouts to filter what's shown.</p>
+  <p class="sync-status" id="syncStatus">Loading latest schedule…</p>
 
   <div class="controls">
     <div class="control-group">
@@ -266,7 +271,10 @@ const TEAM_NAMES = {
 };
 
 // games: [date, time, H/A, opponentCode, rink]
-const DATA = {
+// This is the last-known-good schedule, embedded so the page works instantly
+// and still works if the live Google Sheets fetch below fails for any reason.
+// It gets replaced in-place by syncFromSheets() once live data loads.
+let DATA = {
 O67:{
   games:[
     ["2026-10-03","14:15","A","EOA","Ray Friel"],
@@ -607,6 +615,167 @@ EOA:{
 /* League-wide blackout (applies to everyone) */
 const LEAGUE_BLACKOUT = [["2026-12-21","2027-01-01","Christmas Break (league-wide)"]];
 
+/* ---------------- LIVE SYNC FROM GOOGLE SHEETS ----------------
+   The schedule and blackout dates live in two Google Sheets that Nick edits.
+   On load we fetch both, rebuild DATA from them, and re-render — so anyone
+   who edits either sheet sees the change here without a new deploy.
+   If the fetch fails (offline, sheet unshared, etc.) the page keeps working
+   off the embedded DATA above. */
+const SCHEDULE_SHEET_ID  = "1_vgDnJokSg7nA-QHp-6RBZIA6cpVpuVlofmAkwAecB8"; // "U13 Eastern Loop - Schedule (Live Source)"
+const BLACKOUT_SHEET_ID  = "18npfO-lwpZTGj2LkLf9k7IdX-og5zPJPCX-EtBJKzE8"; // "AA/A_OWHA_Eastern_Loop_v4"
+const BLACKOUT_TABS = {
+  O67:"Ottawa 67s", NEPAA:"Nepean AA", KANAA:"Kanata AA", CORAA:"Cornwall AA",
+  EOAA:"EO AA", CANAA:"Canton AA", NEPA:"Nepean A", KANA:"Kanata A", EOA:"EO A"
+};
+
+function gvizCallbackUrl(sheetId, sheetName, cbName){
+  const params = new URLSearchParams();
+  if(sheetName) params.set("sheet", sheetName);
+  params.set("tqx", "out:json;responseHandler:"+cbName);
+  return "https://docs.google.com/spreadsheets/d/"+sheetId+"/gviz/tq?"+params.toString();
+}
+
+/* Loads a gviz table via a <script> tag (JSONP) so it works cross-origin
+   from a static GitHub Pages site with no server and no CORS headaches. */
+function fetchGvizTable(sheetId, sheetName, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    const cbName = "__gviz_cb_"+Math.random().toString(36).slice(2);
+    let settled = false;
+    const script = document.createElement("script");
+    function cleanup(){
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = (resp)=>{
+      if(settled) return;
+      settled = true;
+      cleanup();
+      if(!resp || !resp.table) reject(new Error("Bad response for "+sheetName));
+      else resolve(resp.table);
+    };
+    script.src = gvizCallbackUrl(sheetId, sheetName, cbName);
+    script.onerror = ()=>{
+      if(settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("Failed to load sheet: "+(sheetName||sheetId)));
+    };
+    document.body.appendChild(script);
+    setTimeout(()=>{
+      if(settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("Timed out loading sheet: "+(sheetName||sheetId)));
+    }, timeoutMs || 12000);
+  });
+}
+
+/* gviz date cells can come back as "Date(2026,9,3)" (0-indexed month),
+   as plain ISO text ("2026-10-03") if the column is formatted as text,
+   or as a locale date string ("10/3/2026"). Handle all three. */
+function normalizeDateCell(raw){
+  if(raw===null || raw===undefined) return "";
+  const s = String(raw).trim();
+  let m = s.match(/^Date\((\d+),(\d+),(\d+)/);
+  if(m) return m[1]+"-"+pad(Number(m[2])+1)+"-"+pad(Number(m[3]));
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return m[3]+"-"+pad(Number(m[1]))+"-"+pad(Number(m[2]));
+  return s;
+}
+
+/* gviz time-of-day cells can come back as [h,m,s,ms], or as text "18:00:00". */
+function normalizeTimeCell(raw){
+  if(raw===null || raw===undefined) return "";
+  if(Array.isArray(raw)) return pad(raw[0])+":"+pad(raw[1]);
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if(m) return pad(Number(m[1]))+":"+m[2];
+  return s;
+}
+
+function cellVal(row, idx){
+  if(!row.c || !row.c[idx]) return null;
+  return row.c[idx].v;
+}
+
+/* The live schedule sheet has ONE ROW PER GAME (Date, Day, Start, HomeTeam,
+   AwayTeam, Rink, Country, SlotType, Notes) so Nick only has to update a
+   single line when a game changes. This expands each row into the two
+   team-perspective entries the calendar needs: the home team's [date,time,
+   "H",awayTeam,rink] and the away team's [date,time,"A",homeTeam,rink]. */
+function expandScheduleRows(rows){
+  const byTeam = {};
+  rows.forEach(r=>{
+    const date = normalizeDateCell(cellVal(r,0));
+    const time = normalizeTimeCell(cellVal(r,2));
+    const home = (cellVal(r,3)||"").toString().trim();
+    const away = (cellVal(r,4)||"").toString().trim();
+    const rink = (cellVal(r,5)||"").toString().trim();
+    if(!date || !home || !away) return;
+    if(!byTeam[home]) byTeam[home] = [];
+    if(!byTeam[away]) byTeam[away] = [];
+    byTeam[home].push([date,time,"H",away,rink]);
+    byTeam[away].push([date,time,"A",home,rink]);
+  });
+  return byTeam;
+}
+
+/* Builds the {games, blackouts, recurring} shape for one team from the two
+   live sheets. Falls back to whatever is already in DATA[code] (the
+   embedded snapshot) for any piece that can't be parsed. */
+function buildLiveTeamData(code, games, blackoutTable){
+  const prev = DATA[code] || {games:[], blackouts:[], recurring:null};
+  games = (games||[]).slice().sort((a,b)=> a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+
+  let blackouts = prev.blackouts;
+  let recurring = prev.recurring;
+  if(blackoutTable && blackoutTable.rows){
+    const bo = [];
+    let recur = null;
+    blackoutTable.rows.forEach(r=>{
+      const start = normalizeDateCell(cellVal(r,17));
+      const end = normalizeDateCell(cellVal(r,18));
+      const reason = (cellVal(r,19)||"").toString().trim();
+      if(start && end) bo.push([start,end,reason||"Blackout"]);
+      const recCell = (cellVal(r,22)||"").toString().trim();
+      if(recCell && !recur) recur = recCell;
+    });
+    if(bo.length) blackouts = bo;
+    recurring = recur;
+  }
+
+  return {games: games.length?games:prev.games, blackouts, recurring};
+}
+
+async function syncFromSheets(){
+  const statusEl = document.getElementById("syncStatus");
+  try{
+    const scheduleTable = await fetchGvizTable(SCHEDULE_SHEET_ID, null, 12000);
+    const scheduleRowsByTeam = expandScheduleRows(scheduleTable.rows||[]);
+
+    const blackoutTables = {};
+    await Promise.all(Object.keys(BLACKOUT_TABS).map(code=>
+      fetchGvizTable(BLACKOUT_SHEET_ID, BLACKOUT_TABS[code], 12000)
+        .then(t=>{ blackoutTables[code] = t; })
+        .catch(()=>{ /* leave this team's blackouts on the fallback data */ })
+    ));
+
+    const nextData = {};
+    Object.keys(TEAM_NAMES).forEach(code=>{
+      nextData[code] = buildLiveTeamData(code, scheduleRowsByTeam[code]||[], blackoutTables[code]);
+    });
+
+    DATA = nextData;
+    statusEl.textContent = "Synced live from Google Sheets · "+new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+    statusEl.className = "sync-status ok";
+    render();
+  }catch(err){
+    statusEl.textContent = "Showing last saved schedule — live sync unavailable right now.";
+    statusEl.className = "sync-status err";
+  }
+}
+
 /* ---------------- STATE ---------------- */
 let currentTeam = "O67";
 let viewYear = 2026, viewMonth = 9; // 0-indexed month: Oct = 9
@@ -815,6 +984,7 @@ function renderUpcomingList(evByDate){
 }
 
 render();
+syncFromSheets();
 </script>
 </body>
 </html>
